@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutrition Analysis</title>
+    <style>
+        :root {
+            --primary-color: #f2f2f2;
+            --border-color: #ddd;
+            --padding: 8px;
+            --border-radius: 8px;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr; /* Three columns: Food, Drink, Plots */
+            grid-template-rows: auto 1fr 1fr; /* Three rows: Tables/Plot, Summary, Query */
+            gap: 20px;
+        }
+        .food-data, .drink-data {
+            grid-row: 1;
+        }
+        .plot-section {
+        grid-column: 3; 
+        grid-row: 1 / span 3; 
+        max-height: 100%; 
+        overflow-y: auto; 
+        }
+        .summary-section {
+            grid-column: 1 / span 2;
+            grid-row: 2; 
+        }
+        .query-section {
+            grid-column: 1 / span 2; 
+            grid-row: 3; 
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        #query-input {
+        width: 400px; 
+        height: 40px;
+        font-size: 16px; 
+        padding: 8px; 
+        border-radius: 5px; 
+        border: 1px solid #ddd;
+        }
+        #query-form {
+            display: flex; 
+            gap: 10px; 
+            align-items: center;
+        }
+        #query-response {
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: var(--padding);
+            text-align: left;
+        }
+        th {
+            background-color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <h1>Nutrition Analysis Tool</h1>
+    <div class="container">
+        <!-- Food CSV Upload and Display -->
+        <section class="food-data">
+            <h2>Upload Food CSV</h2>
+            <form method="POST" enctype="multipart/form-data">
+                <input type="file" name="food_file" accept=".csv">
+                <button type="submit" aria-label="Upload Food CSV">Upload Food CSV</button>
+            </form>
+            {% if food_df is not none %}
+                <h3>Food Data</h3>
+                <form id="filter-form-food">
+                    <label for="sign-food">Sign:</label>
+                    <select id="sign-food" name="sign">
+                        <option value="=">=</option>
+                        <option value=">">></option>
+                        <option value="<"><</option>
+                    </select>
+                    <label for="column-food">Column:</label>
+                    <select id="column-food" name="column">
+                        {% if food_df is not none %}
+                            {% for column in food_df.columns[1:] %}
+                                <option value="{{ column }}">{{ column }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                    <label for="value-food">Value:</label>
+                    <input type="number" id="value" name="value" value="0">
+                    <button type="button" onclick="applyFilter('food')">Apply Filter</button>
+                </form>
+                <div id="food-table" style="max-height: 200px; overflow-y: auto;">
+                    {{ food_df.to_html(classes='table', index=False) | safe }}
+                </div>
+                {% if food_summary %}
+                    <div id="food-summary">
+                        <h4>Food Summary Statistics:</h4>
+                        <ul>
+                            {% for key, value in food_summary.items() %}
+                                <li><strong>{{ key }}:</strong> {{ value|round(2) }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+            {% endif %}
+        </section>
+
+        <!-- Drinks CSV Upload and Display -->
+        <section class="drink-data">
+            <h2>Upload Drinks CSV</h2>
+            <form method="POST" enctype="multipart/form-data">
+                <input type="file" name="drinks_file" accept=".csv">
+                <button type="submit" aria-label="Upload Drinks CSV">Upload Drinks CSV</button>
+            </form>
+            {% if drinks_df is not none %}
+                <h3>Drinks Data</h3>
+                <!-- Drinks Filter Form -->
+                <form id="filter-form-drink">
+                    <label for="sign-drink">Sign:</label>
+                    <select id="sign-drink" name="sign">
+                        <option value="=">=</option>
+                        <option value=">">></option>
+                        <option value="<"><</option>
+                    </select>
+
+                    <label for="column-drink">Column:</label>
+                    <select id="column-drink" name="column">
+                        {% if drinks_df is not none %}
+                            {% for column in drinks_df.columns[1:] %}
+                                <option value="{{ column }}">{{ column }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+
+                    <label for="value-drink">Value:</label>
+                    <input type="number" id="value-drink" name="value" value="0">
+                    <button type="button" onclick="applyFilter('drink')">Apply Filter</button>
+                </form>
+                <div id="drink-table" style="max-height: 200px; overflow-y: auto;">
+                    {{ drinks_df.to_html(classes='table', index=False) | safe }}
+                </div>
+                {% if drinks_summary %}
+                    <div id="drink-summary">
+                        <h4>Drink Summary Statistics:</h4>
+                        <ul>
+                            {% for key, value in drinks_summary.items() %}
+                                <li><strong>{{ key }}:</strong> {{ value|round(2) }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+            {% endif %}
+        </section>
+
+        <!-- Plots Section -->
+        <section class="plot-section">
+            <h2>Plots</h2>
+            <select id="nutrient-select">
+                {% if food_df is not none %}
+                    {% for column in food_df.columns[1:] %}
+                        <option value="{{ column }}">{{ column }}</option>
+                    {% endfor %}
+                {% endif %}
+            </select>
+            <div id="plots">
+                {% if plots is not none %}
+                    <h3>Average {{ nutrient }}</h3>
+                    <img src="data:image/png;base64,{{ plots.avg_plot }}" alt="Average {{ nutrient }}" aria-label="Average {{ nutrient }} plot">
+                    <h3>Total {{ nutrient }}</h3>
+                    <img src="data:image/png;base64,{{ plots.total_plot }}" alt="Total {{ nutrient }}" aria-label="Total {{ nutrient }} plot">
+                    <h3>{{ nutrient }} Distribution</h3>
+                    <img src="data:image/png;base64,{{ plots.dist_plot }}" alt="{{ nutrient }} Distribution" aria-label="{{ nutrient }} Distribution plot">
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- LLM Summary Section -->
+        <section class="summary-section">
+            <h2>Nutritional Insights from LLM</h2>
+            {% if llm_summary %}
+                <div class="llm-summary">
+                    {{ llm_summary|safe }}
+                </div>
+            {% else %}
+                <p>No summary available. Upload both food and drinks datasets to generate insights.</p>
+            {% endif %}
+        </section>
+
+        <!-- Query Section -->
+        <section class="query-section">
+            <h2>Ask a Question!</h2>
+            <form id="query-form">
+                <input type="text" id="query-input" placeholder="e.g., What is the drink with the highest calories?" required>
+                <button type="submit">Ask</button>
+            </form>
+            <div class="query-response" id="query-response">
+                <!-- LLM's response will be displayed here -->
+            </div>
+        </section>
+    </div>
+
+    <!-- JS Functions -->
+    <script>
+        function applyFilter(dataset) {
+            const form = document.getElementById(`filter-form-${dataset}`);
+            if (!form || !(form instanceof HTMLFormElement)) {
+                console.error(`Form with ID 'filter-form-${dataset}' not found or invalid.`);
+                return;
+            }
+            const formData = new FormData(form);
+            formData.append("dataset", dataset);
+
+            fetch("/filter", {
+                method: "POST",
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    document.getElementById(`${dataset}-table`).innerHTML = data.filtered_html;
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+            });
+        }
+
+        
+        document.getElementById("nutrient-select").addEventListener("change", function() {
+            const nutrient = this.value;
+
+            fetch("/update_plots", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: `nutrient=${nutrient}`,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    document.getElementById("plots").innerHTML = `
+                        <h3>Average ${nutrient}</h3>
+                        <img src="data:image/png;base64,${data.avg_plot}" alt="Average ${nutrient}" aria-label="Average ${nutrient} plot">
+                        <h3>Total ${nutrient}</h3>
+                        <img src="data:image/png;base64,${data.total_plot}" alt="Total ${nutrient}" aria-label="Total ${nutrient} plot">
+                        <h3>${nutrient} Distribution</h3>
+                        <img src="data:image/png;base64,${data.dist_plot}" alt="${nutrient} Distribution" aria-label="${nutrient} Distribution plot">
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+            });
+        });
+
+        document.getElementById("query-form").addEventListener("submit", function(event) {
+            event.preventDefault();
+            const query = document.getElementById("query-input").value;
+
+            fetch("/query", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: `query=${encodeURIComponent(query)}`,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById("query-response").innerText = data.error;
+                } else {
+                    document.getElementById("query-response").innerText = data.response;
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                document.getElementById("query-response").innerText = "An error occurred. Please try again.";
+            });
+        });
+    </script>
+</body>
+</html>
