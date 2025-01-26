@@ -72,7 +72,12 @@ nutrient-analysis-tool/
 |   │     └── llm_summary.py
 │   ├── templates/
 │   │   └── index.html
-│   ├── static/uploads
+│   └── static/uploads
+├── dataset
+|   ├── food.csv
+|   └── drinks.csv
+├── eda
+|   └── eda.ipynb
 ├── Dockerfile
 ├── .dockerignore
 ├── requirements.txt
